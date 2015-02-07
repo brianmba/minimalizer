@@ -1,0 +1,6 @@
+require 'rails'
+require 'minimalizer/controller_helpers'
+require 'minimalizer/controller_test_helpers'
+require 'minimalizer/model_test_helpers'
+require 'minimalizer/engine'
+require 'minimalizer/version'
