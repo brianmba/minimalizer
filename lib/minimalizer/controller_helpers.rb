@@ -43,6 +43,13 @@ module Minimalizer
     #     create_resource [@parent, @record], record_params
     #   end
     #
+    # An optional :context argument will be passed to the record’s #save method
+    # to set the validation context.
+    #
+    #   def create
+    #     create_resource @record, record_params, context: :scenario
+    #   end
+    #
     # An optional :location argument will override the redirect location.
     #
     #   def create
@@ -61,11 +68,11 @@ module Minimalizer
     #       end
     #     end
     #   end
-    def create_resource(resource, attributes, location: nil)
+    def create_resource(resource, attributes, context: nil, location: nil)
       model = resource.is_a?(Array) ? resource.last : resource
       model.assign_attributes attributes
 
-      if model.save
+      if model.save(context: context)
         flash.notice = t('.notice')
         yield true if block_given?
         redirect_to location || resource
@@ -94,6 +101,13 @@ module Minimalizer
     #     update_resource [@parent, @record], record_params
     #   end
     #
+    # An optional :context argument will be passed to the record’s #save method
+    # to set the validation context.
+    #
+    #   def update
+    #     update_resource @record, record_params, context: :scenario
+    #   end
+    #
     # An optional :location argument will override the redirect location.
     #
     #   def update
@@ -112,10 +126,11 @@ module Minimalizer
     #       end
     #     end
     #   end
-    def update_resource(resource, attributes, location: nil)
+    def update_resource(resource, attributes, context: nil, location: nil)
       model = resource.is_a?(Array) ? resource.last : resource
+      model.assign_attributes(attributes)
 
-      if model.update(attributes)
+      if model.save(context: context)
         flash.notice = t('.notice')
         yield true if block_given?
         redirect_to location || resource
