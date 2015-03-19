@@ -1,5 +1,7 @@
 # Write Ruby on Rails applications more easily with Minimalizer
 
+[![Gem Version](https://badge.fury.io/rb/minimalizer.svg)](http://badge.fury.io/rb/minimalizer)
+
 Minimalizer is a lightweight Ruby on Rails engine that enables you to write more
 minimal Ruby on Rails applications. Minimalizer convenience methods help you
 write simpler model and controller tests and declare basic controller behaviors
