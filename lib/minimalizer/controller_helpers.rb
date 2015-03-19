@@ -56,6 +56,12 @@ module Minimalizer
     #     create_resource @record, record_params, location: :records
     #   end
     #
+    # An optional :template argument will override the default :new template.
+    #
+    #   def create
+    #     create_resource @record, record_params, template: :alternate
+    #   end
+    #
     # Passing a block will yield true if the model saves successfully, false
     # otherwise.
     #
@@ -68,7 +74,7 @@ module Minimalizer
     #       end
     #     end
     #   end
-    def create_resource(resource, attributes, context: nil, location: nil)
+    def create_resource(resource, attributes, context: nil, location: nil, template: nil)
       model = resource.is_a?(Array) ? resource.last : resource
       model.assign_attributes attributes
 
@@ -80,7 +86,7 @@ module Minimalizer
         flash.now.alert = t('.alert')
         response.status = 422
         yield false if block_given?
-        render :new
+        render template || :new
       end
     end
 
@@ -114,6 +120,12 @@ module Minimalizer
     #     update_resource @record, record_params, location: :records
     #   end
     #
+    # An optional :template argument will override the default :edit template.
+    #
+    #   def update
+    #     update_resource @record, record_params, template: :alternate
+    #   end
+    #
     # Passing a block will yield true if the model updates successfully, false
     # otherwise.
     #
@@ -126,7 +138,7 @@ module Minimalizer
     #       end
     #     end
     #   end
-    def update_resource(resource, attributes, context: nil, location: nil)
+    def update_resource(resource, attributes, context: nil, location: nil, template: nil)
       model = resource.is_a?(Array) ? resource.last : resource
       model.assign_attributes(attributes)
 
@@ -138,7 +150,7 @@ module Minimalizer
         flash.now.alert = t('.alert')
         response.status = 422
         yield false if block_given?
-        render :edit
+        render template || :edit
       end
     end
 
