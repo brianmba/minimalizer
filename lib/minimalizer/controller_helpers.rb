@@ -87,7 +87,7 @@ module Minimalizer
 
       yield(model, options) if block_given?
 
-      unless options.key?(:location)
+      unless options[:location].present? || options[:location] == false
 	options[:location] = resource_chain
       end
 
