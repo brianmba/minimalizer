@@ -27,352 +27,141 @@ module Minimalizer
       end
     end
 
-    # Create a new resource with the given attributes. If successful, set the
-    # ".notice" flash and redirect to the newly created resource; otherwise,
-    # set the ".alert" flash and render the new template with a 422 HTTP status
-    # reponse.
+    # Respond to a boolean condition.
+    #
+    # If the condition is truthful, set the notice flash, if present, and
+    # redirect to the :location option, if present.
+    #
+    # If the condition is not truthful, set the alert flash, if present, and
+    # render the :template option or the default action. If the :redirect option
+    # is provided, redirect there instead. If the :redirect option equals true,
+    # then redirect to the :location option instead.
     #
     #   def create
-    #     create_resource @record, record_params
+    #     respond_to_boolean(value, location: '/home')
     #   end
     #
-    # A resource array can be provided to affect the redirect location. Only
-    # the last resource will be saved.
+    # Provide callbacks to :on_succeed or :on_fail and all methods will be
+    # called on the containing controller. Callbacks may be provided as a symbol
+    # or array of symbols.
     #
     #   def create
-    #     create_resource [@parent, @record], record_params
+    #     respond_to_boolean(value, location: '/home', on_succeed: :do_something)
     #   end
     #
-    # An optional :context argument will be passed to the record’s #save method
-    # to set the validation context.
-    #
-    #   def create
-    #     create_resource @record, record_params, context: :scenario
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def create
-    #     create_resource @record, record_params, location: :records
-    #   end
-    #
-    # An optional :template argument will override the default :new template.
-    #
-    #   def create
-    #     create_resource @record, record_params, template: :alternate
-    #   end
-    #
-    # Passing a block will yield true if the model saves successfully, false
-    # otherwise.
-    #
-    #   def create
-    #     create_resource @record, record_params do |success|
-    #       if sucess
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def create_resource(resource, attributes, context: nil, location: nil, template: nil)
-      model = resource.is_a?(Array) ? resource.last : resource
-      model.assign_attributes attributes
-
-      if model.save(context: context)
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location || resource
+    # By default the  notice and alert values will be set to the I18n
+    # translations of “.notice” and “.alert”, respectively. Pass a string to
+    # render that value directly, a hash to use that value as the locals during
+    # the translation, or a false-like value to skip setting that flash value.
+    def respond_to_boolean(condition, location: nil, template: nil, redirect: false, on_succeed: [], on_fail: [], notice: true, alert: true)
+      if condition
+	flash.notice = translate_key(:notice, notice)
+	redirect_to location if location
+	Array(on_succeed).each { |method| send(method) }
+      elsif redirect
+	flash.alert = translate_key(:alert, alert)
+	location = redirect unless redirect == true
+	redirect_to location if location
+	Array(on_fail).each { |method| send(method) }
       else
-        flash.now.alert = t('.alert')
-        response.status = 422
-        yield false if block_given?
-        render template || :new
+	flash.now.alert = translate_key(:alert, alert)
+	render template || { create: :new, update: :edit, destroy: :delete }[action_name.to_sym], status: 422
+	Array(on_fail).each { |method| send(method) }
       end
     end
 
-
-    # Update an existing resource with the given attributes. If successful,
-    # set the ".notice" flash and redirect to the resource; otherwise, set the
-    # ".alert" flash and render the edit template with a 422 HTTP status
-    # response.
+    # Convenience method for responding to the boolean result of a model’s
+    # method. The model is extracted from the provided resource chain, and
+    # unless a :location option is provided the resource_chain will be used as
+    # the redirect location. See #respond_to_boolean for more information.
     #
-    #   def update
-    #     update_resource @record, record_params
+    #   def create
+    #     respond_to_boolean([:namespace, @resource], :save, { attribute: 1 })
     #   end
-    #
-    # A resource array can be provided to affect the redirect location. Only
-    # the last resource will be updated.
-    #
-    #   def update
-    #     update_resource [@parent, @record], record_params
-    #   end
-    #
-    # An optional :context argument will be passed to the record’s #save method
-    # to set the validation context.
-    #
-    #   def update
-    #     update_resource @record, record_params, context: :scenario
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def update
-    #     update_resource @record, record_params, location: :records
-    #   end
-    #
-    # An optional :template argument will override the default :edit template.
-    #
-    #   def update
-    #     update_resource @record, record_params, template: :alternate
-    #   end
-    #
-    # Passing a block will yield true if the model updates successfully, false
-    # otherwise.
-    #
-    #   def update
-    #     update_resource @record, record_params do |success|
-    #       if sucess
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def update_resource(resource, attributes, context: nil, location: nil, template: nil)
-      model = resource.is_a?(Array) ? resource.last : resource
-      model.assign_attributes(attributes)
-
-      if model.save(context: context)
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location || resource
+    def respond_to_resource(resource_chain, method, arguments = nil, options = {})
+      if resource_chain.is_a?(Array)
+	model = Array(resource_chain).reject { |o| [String, Symbol].include?(o.class) }.last
       else
-        flash.now.alert = t('.alert')
-        response.status = 422
-        yield false if block_given?
-        render template || :edit
+	model = resource_chain
+      end
+
+      yield(model, options) if block_given?
+
+      unless options.key?(:location)
+	options[:location] = resource_chain
+      end
+
+      if arguments.is_a?(Hash)
+	respond_to_boolean(model.send(method, arguments), options)
+      else
+	respond_to_boolean(model.send(method, *arguments), options)
       end
     end
 
-    # Delete the given model.
-    #
-    # If the operation succeeds, provide a successful flash notice and
-    # redirect to the provided location (if given) or to the pluralized path
-    # of the original resource.
-    #
-    # If the operation fails, provide a failed flash alert. Then, if the
-    # :delete action exists, render the edit action with an
-    # :unprocessable_entity HTTP status; if the action does not exist,
-    # redirect to the original resource.
-    #
-    #
-    #
-    # Destroy an existing resource. If successful, set the ".notice" flash and
-    # redirect to the symbolized, plural name of the resource; otherwise, set
-    # the ".alert" flash and render the delete template with a 422 HTTP status
-    # response; if the delete action is not defined, instead redirect the
-    # resource.
-    #
-    #   def destroy
-    #     destroy_resource @record
-    #   end
-    #
-    # A resource array can be provided to affect the redirect location. Only
-    # the last resource will be destroyed.
-    #
-    #   def destroy
-    #     destroy_resource [@parent, @record]
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def destroy
-    #     destroy_resource @record, location: :root
-    #   end
-    #
-    # Passing a block will yield true if the model destroys successfully, false
-    # otherwise.
-    #
-    #   def destroy
-    #     destroy_resource @record do |success|
-    #       if sucess
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def destroy_resource(resource, location: nil)
-      model = resource.is_a?(Array) ? resource.last : resource
-
-      if model.destroy
-        if !location
-          location = Array(resource)[0..-2] + [model.model_name.plural.to_sym]
-        end
-
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location
-      else
-        if respond_to?(:delete)
-          flash.now.alert = t('.alert')
-          response.status = 422
-          yield false if block_given?
-          render :delete
-        else
-          flash.alert = t('.alert')
-          yield false if block_given?
-          redirect_to resource
-        end
+    # Convenience method for creating a new ActiveRecord-like resource.
+    # Attributes will be assigned to the model prior to saving. See
+    # #respond_to_resource for more information.
+    def create_resource(resource_chain, attributes, options = {})
+      context = options.slice!(:context) if options.key?(:context)
+      respond_to_resource(resource_chain, :save, context, options) do |model|
+	model.assign_attributes(attributes)
       end
     end
 
-    # Reorder the given models on the order attribute by the given attributes.
-    #
-    # If all operations succeed, provide a successful flash notice and
-    # redirect to the provided location (if given) or to the pluralized path
-    # of the first original resource.
-    #
-    # If any operation fails, provide a failed flash alert and render the
-    # :edit action with an :unprocessable_entity HTTP status.
-    #
-    #   def update
-    #     reorder_resources @records, record_params
-    #   end
-    #
-    # An optional :attribute argument will override the default reording
-    # attribute (:position).
-    #
-    #   def update
-    #     reorder_resources @records, record_params, attribute: :ranking
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def update
-    #     reorder_resources @records, record_params, location: :root
-    #   end
-    #
-    # Passing a block will yield true if all models are reordered successfully,
-    # false otherwise.
-    #
-    #   def update
-    #     reorder_resources @records, record_params do |success|
-    #       if sucess
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def reorder_resources(resources, attributes, attribute: :position, location: nil)
-      models = resources.is_a?(Array) && (resources.last.is_a?(Array) || resources.last.is_a?(ActiveRecord::Relation)) ? resources.last : resources
+    # Convenience method for updating an existing ActiveRecord-like resource.
+    # See #respond_to_resource for more information.
+    def update_resource(resource_chain, attributes, options = {})
+      respond_to_resource(resource_chain, :update, attributes, options)
+    end
 
-      models.each do |model|
-        model.update(attribute => attributes[model.id.to_s].to_i)
-      end
-
-      if models.all? { |model| model.errors.empty? }
-        if !location
-          if models.any?
-            location = Array(resources)[0..-2] + [models.first.model_name.plural.to_sym]
-          else
-            raise ArgumentError, 'Must provide one or more resources or the :location argument'
-          end
-        end
-
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location
-      else
-        flash.now.alert = t('.alert')
-        response.status = 422
-        yield false if block_given?
-        render :edit
+    # Convenience method for destroying an existing ActiveRecord-like resource.
+    # See #respond_to_resource for more information.
+    def destroy_resource(resource_chain, options = {})
+      respond_to_resource(resource_chain, :destroy, nil, options) do |model, options|
+	options[:location] ||= Array(resource_chain)[0..-2] + [model.model_name.plural.to_sym]
       end
     end
 
-    # Toggle the given model attribute on.
-    #
-    # If the operation succeeds, provide a successful flash notice; otherwise,
-    # provide a failed flash alert. Redirect to the provided location (if
-    # given) or to the initial resource.
-    #
-    #   def update
-    #     toggle_resource_boolen_on @record, :active
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def update
-    #     toggle_resource_boolen_on @record, :active, location: :records
-    #   end
-    #
-    # Passing a block will yield true if the model is updated successfully,
-    # false otherwise.
-    #
-    #   def update
-    #     toggle_resource_boolen_on @record, :active do |success|
-    #       if success
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def toggle_resource_boolean_on(resource, attribute, location: nil)
-      model = resource.is_a?(Array) ? resource.last : resource
+    # Convenience method for updating an existing ActiveRecord-like resource’s
+    # attribute to true. See #respond_to_resource for more information.
+    def enable_resource(resource_chain, attribute, options = {})
+      respond_to_resource(resource_chain, :update, { attribute => true }, options)
+    end
 
-      if model.update(attribute => true)
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location || resource
-      else
-        flash.alert = t('.alert')
-        yield false if block_given?
-        redirect_to location || resource
+    # Convenience method for updating an existing ActiveRecord-like resource’s
+    # attribute to false. See #respond_to_resource for more information.
+    def disable_resource(resource_chain, attribute, options = {})
+      respond_to_resource(resource_chain, :update, { attribute => false }, options)
+    end
+
+    # Convenience method for updating an ActiveRecord::Relation-like
+    # collections’ attributes. Use the :permit option to limit the allowed
+    # attributes. See #respond_to_resource for more information.
+    def mass_update_resources(resources_chain, attributes, options = {})
+      attributes_values = attributes.values
+
+      if permit = options.delete(:permit)
+	attributes_values.map! { |attr| ActionController::Parameters.new(attr).permit(permit) }
+      end
+
+      respond_to_resource(resources_chain, :update, [attributes.keys, attributes_values], options) do |models, options|
+	options[:location] ||= Array(resources_chain)[0..-2] + [models.first.model_name.plural.to_sym]
       end
     end
 
-    # Toggle the given model attribute off.
-    #
-    # If the operation succeeds, provide a successful flash notice; otherwise,
-    # provide a failed flash alert. Redirect to the provided location (if
-    # given) or to the initial resource.
-    #
-    #   def update
-    #     toggle_resource_boolen_off @record, :active
-    #   end
-    #
-    # An optional :location argument will override the redirect location.
-    #
-    #   def update
-    #     toggle_resource_boolen_off @record, :active, location: :records
-    #   end
-    #
-    # Passing a block will yield true if the model is updated successfully,
-    # false otherwise.
-    #
-    #   def update
-    #     toggle_resource_boolen_off @record, :active do |success|
-    #       if success
-    #         # something
-    #       else
-    #         # something
-    #       end
-    #     end
-    #   end
-    def toggle_resource_boolean_off(resource, attribute, location: nil)
-      model = resource.is_a?(Array) ? resource.last : resource
+    private
 
-      if model.update(attribute => false)
-        flash.notice = t('.notice')
-        yield true if block_given?
-        redirect_to location || resource
-      else
-        flash.alert = t('.alert')
-        yield false if block_given?
-        redirect_to location || resource
+    # Returns a string for the value. If the value is a string it will be
+    # returned. If the value is a hash or is truthful the I18n translation for
+    # that key will be rendered with the value as its locals. Include a local of
+    # :_html to render the html version of the translation.
+    def translate_key(key, value)
+      if value.is_a?(String)
+	value
+      elsif value.kind_of?(Hash)
+	t(".#{key}#{'_html' if value.delete(:_html)}", value)
+      elsif value
+	t(".#{key}")
       end
     end
   end
