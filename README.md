@@ -34,12 +34,14 @@ Added to `ActionController::Base`:
 
 * `self.new_actions`
 * `self.member_actions`
+* `respond_to_boolean`
+* `respond_to_resource`
 * `create_resource`
 * `update_resource`
 * `destroy_resource`
-* `reorder_resources`
-* `toggle_resource_boolean_on`
-* `toggle_resource_boolean_off`
+* `enable_resource`
+* `disable_resource`
+* `mass_update_resources`
 
 See `lib/minimalizer/controller_helpers.rb` for more detailed documentation.
 
