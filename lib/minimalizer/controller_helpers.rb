@@ -151,11 +151,14 @@ module Minimalizer
 
     private
 
-    # Returns a string for the value. If the value is a string it will be
-    # returned. If the value is a hash or is truthful the I18n translation for
-    # that key will be rendered with the value as its locals. Include a local of
-    # :_html to render the html version of the translation.
+    # Returns a string for present values. If the value is a string it will be
+    # returned as is. If the value is a hash or is truthful the I18n translation
+    # for that key will be rendered with the value as its locals. Include a
+    # local of :_html to render the html version of the translation. If the
+    # value is a Proc it will be called at the start of the method’s execution.
     def translate_key(key, value)
+      value = value.call if value.is_a?(Proc)
+
       if value.is_a?(String)
 	value
       elsif value.kind_of?(Hash)
